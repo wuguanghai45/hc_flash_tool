@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <!-- 底框高质感暗色渐变 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+
+    <!-- 顶部微光描边（提升精致感） -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#475569" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- 慧仓 Logo 主色渐变 -->
+    <linearGradient id="hcBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1. 外层圆角底座 -->
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="2"/>
+
+  <!-- 2. 核心元素：慧仓菱形立体 Core（简化矢量示例） -->
+  <g transform="translate(48, 52)">
+    <!-- 菱形外框 -->
+    <path d="M 80 10 L 140 45 L 80 80 L 20 45 Z" fill="none" stroke="url(#hcBlue)" stroke-width="14" stroke-linejoin="round"/>
+    <!-- 内部 S 螺旋线条感 -->
+    <path d="M 50 45 L 80 28 L 110 45 L 80 62 L 65 53" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 3. 底部文字/标识区域 -->
+  <text x="128" y="185" font-family="Arial" font-size="18" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="1">
+    HC EMBEDDED
+  </text>
+  <text x="128" y="205" font-family="Arial" font-size="12" font-weight="bold" fill="#3b82f6" text-anchor="middle" letter-spacing="2">
+    FLASH TOOL
+  </text>
+</svg>

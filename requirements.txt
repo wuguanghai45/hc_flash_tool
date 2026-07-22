@@ -1,0 +1,6 @@
+esptool==5.3.1
+pylink-square==2.0.1
+PyQt6==6.11.0
+pyserial==3.5
+pyinstaller==6.21.0
+timeout-decorator==0.5.0

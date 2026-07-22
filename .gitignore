@@ -1,0 +1,7 @@
+dist
+build
+__pycache__
+venv
+JLink_x64.dll
+JLinkARM.dll
+.DS_Store
