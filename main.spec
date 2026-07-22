@@ -1,17 +1,33 @@
 # -*- mode: python ; coding: utf-8 -*-
+import platform
+import sys
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 esptool_datas = collect_data_files('esptool')
 esptool_hiddenimports = collect_submodules('esptool')
+
+jlink_library_by_platform = {
+    'Windows': 'bin/win/JLink_x64.dll' if sys.maxsize > 2**32 else 'bin/win/JLinkARM.dll',
+    'Darwin': 'bin/mac/libjlinkarm.dylib',
+    'Linux': 'bin/linux/libjlinkarm.so',
+}
+jlink_library = jlink_library_by_platform.get(platform.system())
+jlink_datas = (
+    [(jlink_library, str(Path(jlink_library).parent))]
+    if jlink_library and Path(jlink_library).is_file()
+    else []
+)
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('bin', 'bin'),
+        ('bin/ST', 'bin/ST'),
         ('logo.svg', '.'),
-    ] + esptool_datas,
+    ] + jlink_datas + esptool_datas,
     hiddenimports=esptool_hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -51,9 +67,12 @@ coll = COLLECT(
     upx_exclude=[],
     name='main',
 )
-app = BUNDLE(
-    coll,
-    name='main.app',
-    icon='logo.ico',
-    bundle_identifier='com.hc-embedded.flash-tool',
-)
+# BUNDLE is a macOS-only target.  Keeping it conditional allows the same spec
+# file to build the one-folder Windows package used by the GitHub Actions job.
+if platform.system() == 'Darwin':
+    app = BUNDLE(
+        coll,
+        name='main.app',
+        icon='logo.ico',
+        bundle_identifier='com.hc-embedded.flash-tool',
+    )

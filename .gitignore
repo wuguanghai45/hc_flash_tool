@@ -1,5 +1,6 @@
 dist
 build
+artifacts
 __pycache__
 venv
 
