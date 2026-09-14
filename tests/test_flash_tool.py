@@ -177,6 +177,76 @@ class FlashThreadTests(unittest.TestCase):
         self.assertIn("目标板未供电", message)
         fake_jlink.flash_file.assert_not_called()
 
+    def test_jlink_unicode_firmware_download_and_cleanup(self):
+        """DLL receives readable ASCII paths with intact BIN/HEX contents and addresses."""
+        for suffix, content in [(".bin", b"\x00\xfffirmware"),
+                                (".hex", b":020000040800F2\n:00000001FF\n")]:
+            for fail in (False, True):
+                with self.subTest(suffix=suffix, fail=fail):
+                    folder = Path(self.temp_directory.name) / "中文固件"
+                    folder.mkdir(exist_ok=True)
+                    source = folder / ("引导程序" + suffix)
+                    source.write_bytes(content)
+                    thread = self.create_thread()
+                    thread.firmware_paths = {"app": str(source)}
+                    thread.firmware_inputs = {
+                        "app": {"address": "0x08000000", "device_name": "STM32L431RC"}
+                    }
+                    thread.jlink = Mock()
+                    thread.jlink.hardware_status = SimpleNamespace(voltage=3300)
+                    downloads = []
+
+                    def download(path, address):
+                        """Reject Unicode paths as the affected native DLL does."""
+                        self.assertTrue(path.isascii())
+                        self.assertTrue(Path(path).is_absolute())
+                        self.assertEqual(suffix, Path(path).suffix)
+                        self.assertEqual(content, Path(path).read_bytes())
+                        self.assertEqual(0x08000000, address)
+                        downloads.append(Path(path))
+                        if fail:
+                            raise RuntimeError("download failed")
+                        return len(content)
+
+                    thread.jlink.flash_file.side_effect = download
+                    success, message = thread.run_jlink_flash()
+                    self.assertEqual(not fail, success, message)
+                    self.assertEqual(1, len(downloads))
+                    self.assertFalse(downloads[0].parent.exists())
+                    self.assertEqual(content, source.read_bytes())
+
+    def test_jlink_skips_unicode_default_temp_directory(self):
+        """A Chinese user profile must not reintroduce Unicode through TEMP."""
+        source = Path(self.temp_directory.name) / "固件.bin"
+        source.write_bytes(b"firmware")
+        with patch("flash_tool.tempfile.gettempdir", return_value=str(source.parent / "用户")):
+            with FlashThread.jlink_firmware_path(source) as path:
+                self.assertTrue(path.isascii())
+                self.assertEqual(b"firmware", Path(path).read_bytes())
+            self.assertFalse(Path(path).exists())
+
+    def test_jlink_ascii_path_is_used_directly(self):
+        """Existing ASCII paths do not require a temporary copy."""
+        with FlashThread.jlink_firmware_path(self.firmware_path) as path:
+            self.assertEqual(str(self.firmware_path.resolve()), path)
+        self.assertTrue(self.firmware_path.exists())
+
+    def test_jlink_copy_failure_cleans_temporary_directory(self):
+        """Failure to read the original firmware must leave no temporary directory."""
+        source = Path(self.temp_directory.name) / "固件.bin"
+        staged = []
+
+        def fail_copy(original, destination):
+            """Capture the allocated destination before simulating a read failure."""
+            staged.append(Path(destination))
+            raise PermissionError("source unavailable")
+
+        with patch("flash_tool.shutil.copyfile", side_effect=fail_copy):
+            with self.assertRaises(PermissionError):
+                with FlashThread.jlink_firmware_path(source):
+                    self.fail("Copy failure must prevent download")
+        self.assertFalse(staged[0].parent.exists())
+
 
 class FlashToolWindowTests(unittest.TestCase):
     """Verify that long failure text remains visible and accessible."""

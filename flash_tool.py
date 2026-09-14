@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QSize, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QIcon
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import filecmp
 import html
 import pylink
@@ -1548,6 +1548,50 @@ class FlashThread(QThread):
         except Exception as e:
             return False, self.describe_jlink_error("打开探针", e)
 
+    @staticmethod
+    @contextmanager
+    def jlink_firmware_path(firmware_path):
+        """为 J-Link 提供 ASCII 绝对路径，退出时清理 Unicode 固件的临时副本。
+
+        Python 负责读取原文件，避免 DLL 解释 UTF-8 路径失败。临时目录
+        本身也必须为 ASCII；Windows 中文用户名下尝试公共目录和系统临时目录。
+        保留扩展名，使 HEX 文件仍由 J-Link 解析地址记录，不作为裸二进制写入。
+        """
+        source = Path(firmware_path).resolve()
+        if str(source).isascii():
+            yield str(source)
+            return
+
+        candidates = [Path(tempfile.gettempdir())]
+        if os.name == "nt":
+            public = os.environ.get("PUBLIC")
+            system_root = os.environ.get("SystemRoot")
+            if public:
+                candidates.extend([Path(public) / "Documents", Path(public)])
+            if system_root:
+                candidates.append(Path(system_root) / "Temp")
+        candidates.extend([Path(sys.executable).parent, Path.cwd()])
+        temporary = None
+        for candidate in dict.fromkeys(candidates):
+            if not str(candidate.resolve()).isascii():
+                continue
+            try:
+                temporary = tempfile.TemporaryDirectory(
+                    prefix="hc-flash-", dir=str(candidate.resolve())
+                )
+                break
+            except OSError:
+                continue
+        if temporary is None:
+            raise OSError(
+                "无法创建纯英文路径的烧录临时目录，请将 TEMP 设置为可写的纯英文目录"
+            )
+        with temporary as directory:
+            suffix = source.suffix if source.suffix.isascii() else ".bin"
+            staged_path = Path(directory) / ("firmware" + suffix)
+            shutil.copyfile(source, staged_path)
+            yield str(staged_path)
+
     def run_jlink_flash(self):
         """使用已打开的 JLink 连接烧录所有选中的固件。"""
         stage = "检查探针连接"
@@ -1592,7 +1636,8 @@ class FlashThread(QThread):
                 self.emit_jlink_stage(
                     f"正在烧录 {firmware_type} 到 {firmware_info['address']}..."
                 )
-                bytes_flashed = self.jlink.flash_file(firmware_path, address)
+                with self.jlink_firmware_path(firmware_path) as download_path:
+                    bytes_flashed = self.jlink.flash_file(download_path, address)
                 self.log.emit(f"{firmware_type} 已写入 {bytes_flashed} 字节")
 
                 stage = f"复位目标设备 {device_name}"
